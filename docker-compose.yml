@@ -1,38 +1,63 @@
 version: '3.8'
 
 services:
-  mysql:
+  database:
     image: mysql:8
     container_name: habit_mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: 123456
-      MYSQL_DATABASE: habit_tracker
+    restart: unless-stopped
     ports:
       - "3306:3306"
+    environment:
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_DATABASE: habit_tracker
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: password
     volumes:
-      - mysql_data:/var/lib/mysql
+      - habit_volume:/var/lib/mysql
+    networks:
+      - habit_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-ppassword"]
+      retries: 3
+      timeout: 5s
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: habit_backend
+    restart: unless-stopped
     ports:
       - "3000:3000"
-    env_file:
-      - ./backend/.env
-    depends_on:
-      - mysql
+    environment:
+      DATABASE_URL: mysql://user:password@habit_mysql:3306/habit_tracker
+    working_dir: /app
     volumes:
       - ./backend:/app
-    command: npm run dev
+    depends_on:
+      - database
+    networks:
+      - habit_network
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: habit_frontend
+    restart: unless-stopped
     ports:
       - "5173:5173"
+    working_dir: /app
     volumes:
       - ./frontend:/app
     command: npm run dev
+    networks:
+      - habit_network
+
+networks:
+  habit_network:
+    driver: bridge
 
 volumes:
-  mysql_data:
+  habit_volume:
